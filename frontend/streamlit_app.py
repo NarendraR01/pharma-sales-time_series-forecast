@@ -159,8 +159,8 @@ def get_category_stats(category):
 
 # Main application
 def main():
-    st.markdown('<h1 class="main-header">💊 Medicine Time Series Analysis & Prediction</h1>', unsafe_allow_html=True)
-    
+    st.markdown('<h1 class="main-header">💊 Medicine Time Series Analysis & Forecasting</h1>', unsafe_allow_html=True)
+
     # Check API health
     api_healthy, health_data = check_api_health()
     
@@ -224,10 +224,10 @@ def main():
         if use_date_filter:
             col1, col2 = st.columns(2)
             with col1:
-                start_date = st.date_input("Start Date", value=datetime(2023, 1, 1))
+                start_date = st.date_input("Start Date", value=datetime(2014, 1, 1))
             with col2:
-                end_date = st.date_input("End Date", value=datetime.now())
-            
+                end_date = st.date_input("End Date", value=datetime(2017, 12, 31))
+
             if start_date:
                 start_date = start_date.strftime('%Y-%m-%d')
             if end_date:
@@ -260,7 +260,7 @@ def main():
     medicine_categories = [col for col in df.columns if col != 'date']
     
     # Main tabs
-    tab1, tab2 = st.tabs(["📈 Analysis", "🔮 Prediction"])
+    tab1, tab2 = st.tabs(["Analysis", "Forecast"])
     
     with tab1:
         st.header("📈 Time Series Analysis")
