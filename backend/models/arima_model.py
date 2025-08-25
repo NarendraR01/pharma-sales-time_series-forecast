@@ -1,67 +1,80 @@
 # FILE: backend/models/arima_model.py
 from __future__ import annotations
-from typing import Tuple, Dict, Any, List
+from typing import Tuple, Dict, Any
 import numpy as np
 import pandas as pd
-from statsmodels.tsa.statespace.sarimax import SARIMAX
-from statsmodels.tools.sm_exceptions import ConvergenceWarning
+from statsmodels.tsa.arima.model import ARIMA
+from sklearn.preprocessing import PowerTransformer
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 import warnings
+warnings.filterwarnings("ignore")
 
 
-def train_best_sarimax(y: pd.Series) -> Tuple[Any, Dict[str, Any]]:
-    """Grid-search compact (p,d,q)*(P,D,Q,12) and return best-AIC fit + config."""
+def train_best_arima(y: pd.Series) -> Tuple[Any, Dict[str, Any], PowerTransformer]:
+    """
+    Grid-search ARIMA with Yeo-Johnson transform.
+    Returns best model, config, and transformer.
+    """
     assert isinstance(y.index, pd.DatetimeIndex)
-    seasonal = len(y) >= 24
 
-    non_seasonal = [(p, d, q) for p in range(0, 3) for d in range(0, 2) for q in range(0, 3)]
-    seasonal_orders = [(P, D, Q, 12) for P in range(0, 2) for D in range(0, 2) for Q in range(0, 2)] if seasonal else [(0, 0, 0, 0)]
+    # Apply Yeo-Johnson transform
+    pt = PowerTransformer(method="yeo-johnson", standardize=True)
+    y_trans = pt.fit_transform(y.values.reshape(-1, 1)).flatten()
+    y_trans_series = pd.Series(y_trans, index=y.index)
 
-    best_model, best_aic, best_cfg = None, np.inf, {}
-    warnings.simplefilter("ignore", ConvergenceWarning)
+    best_model, best_aic, best_order = None, np.inf, None
+    p_range, d_range, q_range = range(0, 4), range(0, 2), range(0, 4)
 
-    for order in non_seasonal:
-        for s_order in seasonal_orders:
-            try:
-                model = SARIMAX(y, order=order, seasonal_order=s_order, enforce_stationarity=False, enforce_invertibility=False)
-                fitted = model.fit(disp=False)
-                if np.isfinite(fitted.aic) and fitted.aic < best_aic:
-                    best_model, best_aic = fitted, fitted.aic
-                    best_cfg = {"order": order, "seasonal_order": s_order, "aic": float(fitted.aic), "bic": float(fitted.bic)}
-            except Exception:
-                continue
+    for p in p_range:
+        for d in d_range:
+            for q in q_range:
+                try:
+                    model = ARIMA(y_trans_series, order=(p, d, q))
+                    fitted = model.fit()
+                    if fitted.aic < best_aic:
+                        best_model, best_aic, best_order = fitted, fitted.aic, (p, d, q)
+                except Exception:
+                    continue
 
     if best_model is None:
         raise RuntimeError("Failed to fit ARIMA model on the provided data.")
-    return best_model, best_cfg
+
+    return best_model, {"order": best_order, "aic": float(best_aic)}, pt
 
 
-def forecast_with_model(model, horizon: int, conf_level: float) -> Tuple[pd.DatetimeIndex, np.ndarray, np.ndarray, np.ndarray]:
-    fc = model.get_forecast(steps=horizon)
-    mean = fc.predicted_mean
-    conf = fc.conf_int(alpha=1.0 - conf_level)
+def forecast_with_model(model, transformer: PowerTransformer, horizon: int) -> Tuple[pd.DatetimeIndex, np.ndarray]:
+    """
+    Forecast in original scale (monthly).
+    horizon = number of months ahead
+    """
+    fc_trans = model.forecast(steps=horizon)
 
-    last = model.data.row_labels[-1]
-    if not isinstance(last, pd.Timestamp):
-        last = pd.to_datetime(last)
+    if isinstance(fc_trans, np.ndarray):
+        fc_trans = pd.Series(fc_trans)
+
+    fc_orig = transformer.inverse_transform(fc_trans.values.reshape(-1, 1)).flatten()
+
+    # Find last date in the series
+    if hasattr(model.data, "row_labels") and model.data.row_labels is not None:
+        last = model.data.row_labels[-1]
+    else:
+        last = model.model.endog.index[-1]
+
+    last = pd.to_datetime(last)
+
+    # Generate future monthly dates
     idx = pd.date_range(last + pd.offsets.MonthBegin(1), periods=horizon, freq="MS")
+    return idx, fc_orig
 
-    return idx, mean.values, conf.iloc[:, 0].values, conf.iloc[:, 1].values
 
+def evaluate_model(y: pd.Series, model, transformer: PowerTransformer) -> Dict[str, float]:
+    """Evaluate model fit (MAE, RMSE)."""
+    fitted_trans = model.fittedvalues
+    if isinstance(fitted_trans, np.ndarray):
+        fitted_trans = pd.Series(fitted_trans, index=y.index)
 
-def holdout_metrics(y: pd.Series, fitted_model) -> Dict[str, float]:
-    if len(y) < 12:
-        return {"mape": float("nan"), "rmse": float("nan")}
+    fitted_orig = transformer.inverse_transform(fitted_trans.values.reshape(-1, 1)).flatten()
 
-    k = min(12, max(1, len(y)//3))
-    y_train, y_test = y.iloc[:-k], y.iloc[-k:]
-    try:
-        m, _ = train_best_sarimax(y_train)
-        fc = m.get_forecast(steps=k).predicted_mean
-        y_pred = pd.Series(fc.values, index=y_test.index)
-    except Exception:
-        y_pred = pd.Series(fitted_model.get_prediction().predicted_mean.iloc[-k:], index=y_test.index)
-
-    eps = 1e-9
-    mape = float(np.mean(np.abs((y_test - y_pred) / np.maximum(eps, y_test))) * 100.0)
-    rmse = float(np.sqrt(np.mean((y_test - y_pred) ** 2)))
-    return {"mape": mape, "rmse": rmse}
+    mae = mean_absolute_error(y, fitted_orig)
+    rmse = np.sqrt(mean_squared_error(y, fitted_orig))
+    return {"mae": float(mae), "rmse": float(rmse)}

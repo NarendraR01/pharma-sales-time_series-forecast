@@ -17,7 +17,7 @@ def parse_upload_to_monthly_long(filename: str, content: bytes) -> pd.DataFrame:
     # Normalize date column: accept 'date' or 'datum'
     date_cols = [c for c in df.columns if c.lower() in ["date", "datum"]]
     if not date_cols:
-        raise ValueError("File must contain a 'date' (or 'datum') column.")
+        raise ValueError("File must contain a 'date' column.")
     df = df.rename(columns={date_cols[0]: "date"})
 
     # Parse dates
@@ -25,7 +25,8 @@ def parse_upload_to_monthly_long(filename: str, content: bytes) -> pd.DataFrame:
     df = df.dropna(subset=["date"]).copy()
 
     # keep only numeric category columns
-    cat_cols = [c for c in df.columns if c != "date"]
+    ignore_cols = ["year", "month", "hour"]
+    cat_cols = [c for c in df.columns if c != "date" and c.lower() not in ignore_cols]
     if not cat_cols:
         raise ValueError("No category columns found besides 'date'.")
 

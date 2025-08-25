@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from database.db_manager import init_db, upsert_monthly_records, fetch_categories, fetch_monthly_records, fetch_series
 from utils.data_processor import parse_upload_to_monthly_long, pivot_wide, summarize_wide
-from models.arima_model import train_best_sarimax, forecast_with_model, holdout_metrics
+from models.arima_model import train_best_arima, forecast_with_model, evaluate_model
 
 # ----------------------
 # App / Config
@@ -94,30 +94,32 @@ def upload(file: UploadFile = File(...)) -> Dict[str, Any]:
 
 @app.post("/api/predict")
 def predict(req: PredictRequest) -> Dict[str, Any]:
+    # Fetch time series data for category
     y = fetch_series(req.category)
     if len(y) < 6:
-        raise HTTPException(status_code=400, detail="Insufficient data for forecasting (need at least 6 months).")
+        raise HTTPException(
+            status_code=400,
+            detail="Insufficient data for forecasting (need at least 6 months)."
+        )
 
-    model, cfg = train_best_sarimax(y)
+    # Train ARIMA model
+    model, cfg, transformer = train_best_arima(y)
 
-    dates, mean, lower, upper = forecast_with_model(model, horizon=req.periods, conf_level=req.confidence_level)
-    metrics = holdout_metrics(y, model)
-    metrics.update({
-        "aic": float(cfg.get("aic", float("nan"))),
-        "bic": float(cfg.get("bic", float("nan"))),
-        "arima_order": list(cfg.get("order", (0, 0, 0))),
-        "seasonal_order": list(cfg.get("seasonal_order", (0, 0, 0, 0))),
-        "model_valid": True
-    })
+    # Forecast in months
+    dates, mean = forecast_with_model(model, transformer, horizon=req.periods)
+
+    # Evaluate model
+    metrics = evaluate_model(y, model, transformer)
 
     return {
         "category": req.category,
         "dates": [d.strftime("%Y-%m-%d") for d in dates],
         "predictions": [float(x) for x in mean],
-        "lower_ci": [float(x) for x in lower],
-        "upper_ci": [float(x) for x in upper],
-        "model_metrics": metrics,
+        "metrics": metrics,
+        "arima_order": cfg.get("order", [0, 0, 0])   # ✅ send ARIMA order separately
     }
+
+
 
 
 @app.get("/api/stats/{category}")

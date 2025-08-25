@@ -128,7 +128,7 @@ def upload_file_to_api(file):
         return False, {"detail": str(e)}
 
 def get_predictions_from_api(category, periods, confidence_level=0.95):
-    """Get predictions from API"""
+    """Get Forecast from API"""
     try:
         data = {
             "category": category,
@@ -420,28 +420,28 @@ def main():
                 fig = go.Figure()
                 
                 for category in selected_categories:
-                    # Original data
+
                     fig.add_trace(go.Scatter(
                         x=df['date'],
                         y=df[category],
                         mode='lines',
-                        name=f'{category} (Original)',
-                        line=dict(width=1, color='lightblue'),
-                        opacity=0.7
+                        name=f'{category}',
+                        line=dict(width=1),
+                        opacity=1,
                     ))
                     
-                    # 3-month moving average
-                    ma_3 = df[category].rolling(window=3, center=True).mean()
-                    fig.add_trace(go.Scatter(
-                        x=df['date'],
-                        y=ma_3,
-                        mode='lines',
-                        name=f'{category} (3-Month MA)',
-                        line=dict(width=2)
-                    ))
+                    # # 3-month moving average
+                    # ma_3 = df[category].rolling(window=3, center=True).mean()
+                    # fig.add_trace(go.Scatter(
+                    #     x=df['date'],
+                    #     y=ma_3,
+                    #     mode='lines',
+                    #     name=f'{category} (3-Month MA)',
+                    #     line=dict(width=2)
+                    # ))
                 
                 fig.update_layout(
-                    title="Trend Analysis with Moving Averages",
+                    title="Trend Analysis",
                     xaxis_title="Date",
                     yaxis_title="Quantity Sold",
                     height=500,
@@ -499,15 +499,15 @@ def main():
                         st.metric("End Date", detailed_stats.get('end_date', 'N/A'))
                     
                     with col3:
-                        st.metric("Total Quantity", f"{detailed_stats.get('total_quantity', 0):,}")
-                        min_max = f"{detailed_stats.get('min_quantity', 0)} - {detailed_stats.get('max_quantity', 0)}"
+                        st.metric("Total Quantity", f"{detailed_stats.get('total_quantity', 0):,.2f}")
+                        min_max = f"{detailed_stats.get('min_quantity', 0):,.2f} - {detailed_stats.get('max_quantity', 0):,.2f}"
                         st.metric("Range (Min-Max)", min_max)
     
     with tab2:
-        st.header("🔮 Sales Prediction")
+        st.header("🔮 Sales Forecast")
         
         if not available_categories:
-            st.warning("No data available for predictions. Please upload data first.")
+            st.warning("No data available for Forecast. Please upload data first.")
             return
         
         # Prediction controls
@@ -515,28 +515,22 @@ def main():
         
         with col1:
             pred_category = st.selectbox(
-                "Select Category for Prediction",
+                "Select Category for Forecast",
                 available_categories,
-                help="Choose a medicine category to predict"
+                help="Choose a medicine category to Forecast"
             )
         
         with col2:
             prediction_months = st.slider(
-                "Prediction Period (Months)",
+                "Forecast Period (Months)",
                 min_value=1,
                 max_value=24,
                 value=12,
-                help="Number of months to predict"
+                help="Number of months to forecast"
             )
         
         with col3:
-            confidence_level = st.selectbox(
-                "Confidence Level (%)",
-                [90, 95, 99],
-                index=1,
-                help="Confidence level for prediction intervals"
-            ) / 100
-        
+            confidence_level = 95 / 100
         # Model information expander
         with st.expander("ℹ️ About the ARIMA Model"):
             st.markdown("""
@@ -550,13 +544,12 @@ def main():
             - ✅ **Real-time Processing**: Models are retrained when new data is uploaded
             
             **Performance Metrics:**
-            - **MAPE**: Mean Absolute Percentage Error (lower is better)
+            - **MAME**: Mean Absolute Error(lower is better)
             - **RMSE**: Root Mean Square Error (lower is better)
-            - **AIC/BIC**: Information criteria for model selection (lower is better)
             """)
         
-        # Generate predictions button
-        if st.button("🚀 Generate Predictions", type="primary"):
+        # Generate Forecast button
+        if st.button("🚀 Generate Forecast", type="primary"):
             with st.spinner("Running ARIMA model analysis... Please wait"):
                 success, result = get_predictions_from_api(pred_category, prediction_months, confidence_level)
                 
@@ -564,9 +557,7 @@ def main():
                     # Extract prediction data
                     predictions = result['predictions']
                     dates = result['dates']
-                    lower_ci = result['lower_ci']
-                    upper_ci = result['upper_ci']
-                    metrics = result['model_metrics']
+                    metrics = result['metrics']
                     
                     # Create prediction visualization
                     fig = go.Figure()
@@ -591,38 +582,38 @@ def main():
                         x=pred_dates,
                         y=predictions,
                         mode='lines+markers',
-                        name='Predictions',
+                        name='Forecast',
                         line=dict(color='red', width=2, dash='dash'),
                         marker=dict(size=6),
-                        hovertemplate='<b>Prediction</b><br>' +
+                        hovertemplate='<b>Forecast</b><br>' +
                                     'Date: %{x}<br>' +
                                     'Quantity: %{y:,.0f}<br>' +
                                     '<extra></extra>'
                     ))
                     
-                    # Confidence intervals
-                    fig.add_trace(go.Scatter(
-                        x=pred_dates,
-                        y=upper_ci,
-                        mode='lines',
-                        line=dict(width=0),
-                        showlegend=False,
-                        hoverinfo='skip'
-                    ))
+                    # # Confidence intervals
+                    # fig.add_trace(go.Scatter(
+                    #     x=pred_dates,
+                    #     y=upper_ci,
+                    #     mode='lines',
+                    #     line=dict(width=0),
+                    #     showlegend=False,
+                    #     hoverinfo='skip'
+                    # ))
                     
-                    fig.add_trace(go.Scatter(
-                        x=pred_dates,
-                        y=lower_ci,
-                        mode='lines',
-                        line=dict(width=0),
-                        fillcolor=f'rgba(255,0,0,0.2)',
-                        fill='tonexty',
-                        name=f'{int(confidence_level*100)}% Confidence Interval',
-                        hovertemplate='<b>Confidence Interval</b><br>' +
-                                    'Date: %{x}<br>' +
-                                    'Lower: %{y:,.0f}<br>' +
-                                    '<extra></extra>'
-                    ))
+                    # fig.add_trace(go.Scatter(
+                    #     x=pred_dates,
+                    #     y=lower_ci,
+                    #     mode='lines',
+                    #     line=dict(width=0),
+                    #     fillcolor=f'rgba(255,0,0,0.2)',
+                    #     fill='tonexty',
+                    #     name=f'{int(confidence_level*100)}% Confidence Interval',
+                    #     hovertemplate='<b>Confidence Interval</b><br>' +
+                    #                 'Date: %{x}<br>' +
+                    #                 'Lower: %{y:,.0f}<br>' +
+                    #                 '<extra></extra>'
+                    # ))
                     
                     fig.update_layout(
                         title=f"Sales Prediction for {pred_category}",
@@ -639,7 +630,7 @@ def main():
                     col1, col2 = st.columns(2)
                     
                     with col1:
-                        st.subheader("📋 Prediction Summary")
+                        st.subheader("📋 Forecast Summary")
                         avg_prediction = np.mean(predictions)
                         total_prediction = np.sum(predictions)
                         
@@ -656,25 +647,22 @@ def main():
                     
                     with col2:
                         st.subheader("🎯 Model Performance")
-                        
-                        # ARIMA parameters
-                        arima_order = metrics.get('arima_order', [0, 0, 0])
+
+                        # ARIMA order (taken directly from result, not metrics)
+                        arima_order = result.get('arima_order', [0, 0, 0])
                         st.info(f"**ARIMA Order**: ({arima_order[0]}, {arima_order[1]}, {arima_order[2]})")
-                        
+
                         # Performance metrics
-                        mape = metrics.get('mape', 0)
+                        mae = metrics.get('mae', 0)
                         rmse = metrics.get('rmse', 0)
-                        aic = metrics.get('aic', 0)
-                        bic = metrics.get('bic', 0)
-                        
+
                         col2_1, col2_2 = st.columns(2)
                         with col2_1:
-                            st.metric("MAPE", f"{mape:.2f}%")
-                            st.metric("AIC", f"{aic:.2f}")
-                        
+                            st.metric("MAE", f"{mae:.2f}")
+
                         with col2_2:
                             st.metric("RMSE", f"{rmse:.2f}")
-                            st.metric("BIC", f"{bic:.2f}")
+
                         
                         # Model validation
                         model_valid = metrics.get('model_valid', True)
@@ -682,12 +670,12 @@ def main():
                         st.info(f"**Model Validation**: {validation_status}")
                     
                     # Detailed predictions table
-                    with st.expander("📊 Detailed Predictions"):
+                    with st.expander("📊 Detailed Forecast"):
                         pred_df = pd.DataFrame({
                             'Date': dates,
-                            'Predicted Quantity': [f"{p:.0f}" for p in predictions],
-                            'Lower CI': [f"{l:.0f}" for l in lower_ci],
-                            'Upper CI': [f"{u:.0f}" for u in upper_ci]
+                            'Predicted Quantity': [f"{p:.2f}" for p in predictions],
+                            # 'Lower CI': [f"{l:.0f}" for l in lower_ci],
+                            # 'Upper CI': [f"{u:.0f}" for u in upper_ci]
                         })
                         st.dataframe(pred_df, use_container_width=True)
                     
@@ -695,13 +683,13 @@ def main():
                     csv_data = pd.DataFrame({
                         'date': dates,
                         'predicted_quantity': predictions,
-                        'lower_confidence_interval': lower_ci,
-                        'upper_confidence_interval': upper_ci
+                        # 'lower_confidence_interval': lower_ci,
+                        # 'upper_confidence_interval': upper_ci
                     })
                     
                     csv_string = csv_data.to_csv(index=False)
                     st.download_button(
-                        label="📥 Download Predictions (CSV)",
+                        label="📥 Download Forecast (CSV)",
                         data=csv_string,
                         file_name=f"{pred_category}_predictions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                         mime="text/csv",
@@ -710,7 +698,7 @@ def main():
                     
                 else:
                     error_msg = result.get('error', 'Unknown error occurred')
-                    st.error(f"❌ Error generating predictions: {error_msg}")
+                    st.error(f"❌ Error generating Forecast: {error_msg}")
                     
                     # Provide helpful suggestions based on common errors
                     if "insufficient" in error_msg.lower():
@@ -719,84 +707,6 @@ def main():
                         st.info("💡 **Tip**: Make sure the selected category exists in your uploaded data.")
                     elif "stationary" in error_msg.lower():
                         st.info("💡 **Tip**: The data might have complex patterns. Try uploading more recent data or check for outliers.")
-        
-        # Batch predictions section
-        st.divider()
-        st.subheader("🔄 Batch Predictions")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            batch_categories = st.multiselect(
-                "Select multiple categories:",
-                available_categories,
-                default=available_categories[:3] if len(available_categories) >= 3 else available_categories
-            )
-        
-        with col2:
-            batch_periods = st.number_input(
-                "Prediction periods:",
-                min_value=1,
-                max_value=24,
-                value=6,
-                help="Number of months to predict for all selected categories"
-            )
-        
-        if st.button("🎯 Generate Batch Predictions") and batch_categories:
-            batch_results = {}
-            progress_bar = st.progress(0)
-            
-            for i, category in enumerate(batch_categories):
-                with st.spinner(f"Processing {category}..."):
-                    success, result = get_predictions_from_api(category, batch_periods, 0.95)
-                    
-                    if success:
-                        batch_results[category] = {
-                            'avg_prediction': np.mean(result['predictions']),
-                            'total_prediction': np.sum(result['predictions']),
-                            'mape': result['model_metrics'].get('mape', 0)
-                        }
-                    else:
-                        batch_results[category] = {
-                            'error': result.get('error', 'Unknown error')
-                        }
-                
-                progress_bar.progress((i + 1) / len(batch_categories))
-            
-            # Display batch results
-            st.subheader("📊 Batch Prediction Results")
-            
-            successful_predictions = []
-            failed_predictions = []
-            
-            for category, result in batch_results.items():
-                if 'error' in result:
-                    failed_predictions.append(f"❌ **{category}**: {result['error']}")
-                else:
-                    successful_predictions.append({
-                        'Category': category,
-                        'Avg Monthly': f"{result['avg_prediction']:.0f}",
-                        f'Total ({batch_periods}M)': f"{result['total_prediction']:.0f}",
-                        'MAPE': f"{result['mape']:.2f}%"
-                    })
-            
-            if successful_predictions:
-                batch_df = pd.DataFrame(successful_predictions)
-                st.dataframe(batch_df, use_container_width=True)
-                
-                # Download batch results
-                csv_string = batch_df.to_csv(index=False)
-                st.download_button(
-                    label="📥 Download Batch Results (CSV)",
-                    data=csv_string,
-                    file_name=f"batch_predictions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv"
-                )
-            
-            if failed_predictions:
-                st.subheader("⚠️ Failed Predictions")
-                for error in failed_predictions:
-                    st.warning(error)
 
 if __name__ == "__main__":
     main()
