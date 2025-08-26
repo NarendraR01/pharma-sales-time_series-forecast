@@ -14,7 +14,7 @@ my-python-streamlit-app
 │   │   └── db_manager.py      # Database management operations
 │   └── utils
 │       ├── data_processor.py   # Data processing functions
-│       └── validators.py       # Input validation functions
+│   
 ├── frontend
 │   └── streamlit_app.py       # Streamlit frontend application
 └── README.md                  # Project documentation
@@ -37,7 +37,7 @@ my-python-streamlit-app
 ## Usage
 To run the backend application, execute:
 ```
-python backend/main.py
+uvicorn main:app --reload --port 8000
 ```
 
 To launch the Streamlit frontend, run:

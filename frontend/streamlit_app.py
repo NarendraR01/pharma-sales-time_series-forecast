@@ -591,30 +591,6 @@ def main():
                                     '<extra></extra>'
                     ))
                     
-                    # # Confidence intervals
-                    # fig.add_trace(go.Scatter(
-                    #     x=pred_dates,
-                    #     y=upper_ci,
-                    #     mode='lines',
-                    #     line=dict(width=0),
-                    #     showlegend=False,
-                    #     hoverinfo='skip'
-                    # ))
-                    
-                    # fig.add_trace(go.Scatter(
-                    #     x=pred_dates,
-                    #     y=lower_ci,
-                    #     mode='lines',
-                    #     line=dict(width=0),
-                    #     fillcolor=f'rgba(255,0,0,0.2)',
-                    #     fill='tonexty',
-                    #     name=f'{int(confidence_level*100)}% Confidence Interval',
-                    #     hovertemplate='<b>Confidence Interval</b><br>' +
-                    #                 'Date: %{x}<br>' +
-                    #                 'Lower: %{y:,.0f}<br>' +
-                    #                 '<extra></extra>'
-                    # ))
-                    
                     fig.update_layout(
                         title=f"Sales Prediction for {pred_category}",
                         xaxis_title="Date",
@@ -641,10 +617,13 @@ def main():
                         if not df.empty:
                             historical_avg = df[pred_category].tail(12).mean()
                             growth_rate = ((avg_prediction - historical_avg) / historical_avg) * 100 if historical_avg > 0 else 0
-                            
+                            predicted_nextmonth_sales = predictions[0]
+                            sales_diff_predicated = predictions[0] - historical_avg
+
                             st.metric("Historical 12-Month Average", f"{historical_avg:.0f}")
                             st.metric("Predicted Growth Rate", f"{growth_rate:+.1f}%")
-                    
+                            st.metric("Predicted Next Month",f"{predicted_nextmonth_sales:.0f}",delta=f"{sales_diff_predicated:+.0f}"
+)
                     with col2:
                         st.subheader("🎯 Model Performance")
 
@@ -674,8 +653,6 @@ def main():
                         pred_df = pd.DataFrame({
                             'Date': dates,
                             'Predicted Quantity': [f"{p:.2f}" for p in predictions],
-                            # 'Lower CI': [f"{l:.0f}" for l in lower_ci],
-                            # 'Upper CI': [f"{u:.0f}" for u in upper_ci]
                         })
                         st.dataframe(pred_df, use_container_width=True)
                     
@@ -683,8 +660,7 @@ def main():
                     csv_data = pd.DataFrame({
                         'date': dates,
                         'predicted_quantity': predictions,
-                        # 'lower_confidence_interval': lower_ci,
-                        # 'upper_confidence_interval': upper_ci
+                        
                     })
                     
                     csv_string = csv_data.to_csv(index=False)

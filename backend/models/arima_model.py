@@ -44,11 +44,10 @@ def train_best_arima(y: pd.Series) -> Tuple[Any, Dict[str, Any], PowerTransforme
 
 def forecast_with_model(model, transformer: PowerTransformer, horizon: int) -> Tuple[pd.DatetimeIndex, np.ndarray]:
     """
-    Forecast in original scale (monthly).
-    horizon = number of months ahead
+    Forecast in original scale.
+    horizon = number of steps ahead (respects input frequency)
     """
     fc_trans = model.forecast(steps=horizon)
-
     if isinstance(fc_trans, np.ndarray):
         fc_trans = pd.Series(fc_trans)
 
@@ -59,12 +58,17 @@ def forecast_with_model(model, transformer: PowerTransformer, horizon: int) -> T
         last = model.data.row_labels[-1]
     else:
         last = model.model.endog.index[-1]
-
     last = pd.to_datetime(last)
 
-    # Generate future monthly dates
-    idx = pd.date_range(last + pd.offsets.MonthBegin(1), periods=horizon, freq="MS")
+    # Detect frequency
+    freq = pd.infer_freq(model.data.row_labels)
+    if freq is None:
+        raise ValueError("Could not infer frequency. Please specify it manually.")
+
+    # Generate future dates with correct frequency
+    idx = pd.date_range(last, periods=horizon+1, freq=freq)[1:]
     return idx, fc_orig
+
 
 
 def evaluate_model(y: pd.Series, model, transformer: PowerTransformer) -> Dict[str, float]:
