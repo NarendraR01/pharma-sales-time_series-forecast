@@ -1,4 +1,3 @@
-# FILE: backend/database/db_manager.py
 from __future__ import annotations
 from typing import List, Tuple, Optional
 import pandas as pd

@@ -1,4 +1,3 @@
-# FILE: backend/utils/data_processor.py
 from __future__ import annotations
 import io
 import pandas as pd
@@ -47,7 +46,7 @@ def parse_upload_to_monthly_long(filename: str, content: bytes) -> pd.DataFrame:
     return monthly
 
 
-def pivot_wide(df_long: pd.DataFrame) -> pd.DataFrame:
+def pivot_wide(df_long: pd.DataFrame) -> pd.DataFrame:  
     wide = df_long.pivot(index="date", columns="category", values="quantity").sort_index()
     wide = wide.fillna(0.0)
     wide = wide.reset_index()

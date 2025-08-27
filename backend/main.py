@@ -1,4 +1,3 @@
-# FILE: backend/main.py
 from __future__ import annotations
 
 import os
@@ -13,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from database.db_manager import init_db, upsert_monthly_records, fetch_categories, fetch_monthly_records, fetch_series
 from utils.data_processor import parse_upload_to_monthly_long, pivot_wide, summarize_wide
-from models.arima_model import train_best_arima, forecast_with_model, evaluate_model
+from utils.model_loader import load_model
 
 # ----------------------
 # App / Config
@@ -91,33 +90,59 @@ def upload(file: UploadFile = File(...)) -> Dict[str, Any]:
     cats = fetch_categories()
     return {"message": f"Ingested {inserted} monthly records across {monthly_long['category'].nunique()} categories.", "categories": cats}
 
-
 @app.post("/api/predict")
-def predict(req: PredictRequest) -> Dict[str, Any]:
-    # Fetch time series data for category
+def predict(req: PredictRequest):
+    try:
+        loaded = load_model(req.category)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # Handle both dict and tuple
+    if isinstance(loaded, dict):
+        model = loaded["model"]
+        transformer = loaded.get("transformer", None)
+    elif isinstance(loaded, tuple):
+        model, transformer = loaded
+    else:
+        raise HTTPException(status_code=500, detail="Invalid model format")
+
+    # Get historical data
     y = fetch_series(req.category)
-    if len(y) < 6:
-        raise HTTPException(
-            status_code=400,
-            detail="Insufficient data for forecasting (need at least 6 months)."
-        )
+    last_date = y.index[-1]
 
-    # Train ARIMA model
-    model, cfg, transformer = train_best_arima(y)
+    # Prophet case
+    if model.__class__.__name__ == "Prophet":
+        future = model.make_future_dataframe(periods=req.periods, freq="M")
+        forecast = model.predict(future)
+        forecast_tail = forecast.tail(req.periods)
+        dates = forecast_tail["ds"].dt.strftime("%Y-%m-%d").tolist()
+        preds = forecast_tail["yhat"].tolist()
 
-    # Forecast in months
-    dates, mean = forecast_with_model(model, transformer, horizon=req.periods)
+    
+    # ARIMA / SARIMAX case
+    else:
+        # Get the forecast result
+        fc_trans = model.forecast(steps=req.periods)
 
-    # Evaluate model
-    metrics = evaluate_model(y, model, transformer)
+        # Apply inverse transform if a transformer exists
+        if transformer is not None:
+            # Reshape the series to a 2D array for the transformer, then flatten
+            preds = transformer.inverse_transform(fc_trans.to_numpy().reshape(-1, 1)).flatten()
+        else:
+            # If no transformer, use the raw forecast values
+            preds = fc_trans.to_numpy().flatten()
+            
+        # Manually create future dates
+        future_dates = pd.date_range(last_date + pd.offsets.MonthBegin(1),
+                                     periods=req.periods, freq="MS")
+        dates = [d.strftime("%Y-%m-%d") for d in future_dates]
 
     return {
         "category": req.category,
-        "dates": [d.strftime("%Y-%m-%d") for d in dates],
-        "predictions": [float(x) for x in mean],
-        "metrics": metrics,
-        "arima_order": cfg.get("order", [0, 0, 0])   # ✅ send ARIMA order separately
+        "dates": dates,
+        "predictions": [float(x) for x in preds]
     }
+
 
 
 
@@ -137,11 +162,3 @@ def stats(category: str) -> Dict[str, Any]:
         "max_quantity": float(df["quantity"].max()),
     }
 
-
-
-
-
-
-# FILE: backend/utils/validators.py
-# (Placeholder for future custom validators & pydantic helpers.)
-# Example idea: validate category strings to match expected ATC codes, date ranges, etc.
