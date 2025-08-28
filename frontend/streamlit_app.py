@@ -333,7 +333,7 @@ def main():
                     showlegend=True
                 )
                 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
             
             elif analysis_type == "Distribution":
                 # Distribution analysis
@@ -359,7 +359,7 @@ def main():
                     height=400
                 )
                 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
             
             elif analysis_type == "Correlation":
                 # Correlation analysis
@@ -375,7 +375,7 @@ def main():
                     )
                     
                     fig.update_layout(height=500)
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width="stretch")
                 else:
                     st.info("Please select at least 2 categories for correlation analysis.")
             
@@ -412,7 +412,7 @@ def main():
                     )
                 )
                 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
             
             elif analysis_type == "Trend Analysis":
                 # Trend analysis with moving averages
@@ -447,7 +447,7 @@ def main():
                     hovermode='x unified'
                 )
                 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
         
         # Summary statistics
         if selected_categories and summary_stats:
@@ -470,7 +470,7 @@ def main():
             
             if stats_data:
                 stats_df = pd.DataFrame(stats_data).T
-                st.dataframe(stats_df, use_container_width=True)
+                st.dataframe(stats_df, width="stretch")
         
         # Category-specific details
         if selected_categories:
@@ -599,7 +599,7 @@ def main():
                         showlegend=True
                     )
                     
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width="stretch")
                     
                     # Prediction summary and metrics
                     col1, col2 = st.columns(2)

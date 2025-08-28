@@ -18,7 +18,7 @@ from utils.model_loader import load_model
 # App / Config
 # ----------------------
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./sales.db")
-app = FastAPI(title="Medicine Sales ARIMA API", version="1.0.0")
+app = FastAPI(title="Medicine Sales Forecast API", version="1.0.0")
 
 # CORS for dev — restrict in production
 app.add_middleware(
@@ -47,7 +47,6 @@ class PredictRequest(BaseModel):
 @app.get("/api/health")
 def health() -> Dict[str, Any]:
     try:
-        # simple round-trip
         cats = fetch_categories()
         status = "connected"
     except Exception:
@@ -67,12 +66,11 @@ def get_data(start_date: Optional[str] = None, end_date: Optional[str] = None, c
         raise HTTPException(status_code=404, detail="No data found for the given filters.")
 
     df = pd.DataFrame(rows, columns=["date", "category", "quantity"])
-    df["date"] = pd.to_datetime(df["date"])  # ensure Timestamp
+    df["date"] = pd.to_datetime(df["date"])
 
     wide = pivot_wide(df)
     summary = summarize_wide(wide)
 
-    # Serialize dates
     wide_out = wide.copy()
     wide_out["date"] = wide_out["date"].dt.strftime("%Y-%m-%d")
 
@@ -88,54 +86,50 @@ def upload(file: UploadFile = File(...)) -> Dict[str, Any]:
     monthly_long = parse_upload_to_monthly_long(filename=file.filename or "", content=content)
     inserted = upsert_monthly_records(monthly_long)
     cats = fetch_categories()
-    return {"message": f"Ingested {inserted} monthly records across {monthly_long['category'].nunique()} categories.", "categories": cats}
+    return {
+        "message": f"Ingested {inserted} monthly records across {monthly_long['category'].nunique()} categories.",
+        "categories": cats
+    }
+
 
 @app.post("/api/predict")
 def predict(req: PredictRequest):
     try:
-        loaded = load_model(req.category)
+        model, transformer, model_type = load_model(req.category)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error loading model: {e}")
 
-    # Handle both dict and tuple
-    if isinstance(loaded, dict):
-        model = loaded["model"]
-        transformer = loaded.get("transformer", None)
-    elif isinstance(loaded, tuple):
-        model, transformer = loaded
-    else:
-        raise HTTPException(status_code=500, detail="Invalid model format")
-
-    # Get historical data
     y = fetch_series(req.category)
+    if y.empty:
+        raise HTTPException(status_code=404, detail=f"No historical data found for category {req.category}")
     last_date = y.index[-1]
 
-    # Prophet case
-    if model.__class__.__name__ == "Prophet":
+    if model_type == "prophet":
         future = model.make_future_dataframe(periods=req.periods, freq="M")
         forecast = model.predict(future)
         forecast_tail = forecast.tail(req.periods)
         dates = forecast_tail["ds"].dt.strftime("%Y-%m-%d").tolist()
         preds = forecast_tail["yhat"].tolist()
 
-    
-    # ARIMA / SARIMAX case
-    else:
-        # Get the forecast result
+    elif model_type in ["arima", "sarima"]:
         fc_trans = model.forecast(steps=req.periods)
 
-        # Apply inverse transform if a transformer exists
         if transformer is not None:
-            # Reshape the series to a 2D array for the transformer, then flatten
             preds = transformer.inverse_transform(fc_trans.to_numpy().reshape(-1, 1)).flatten()
         else:
-            # If no transformer, use the raw forecast values
             preds = fc_trans.to_numpy().flatten()
-            
-        # Manually create future dates
-        future_dates = pd.date_range(last_date + pd.offsets.MonthBegin(1),
-                                     periods=req.periods, freq="MS")
+
+        future_dates = pd.date_range(
+            last_date + pd.offsets.MonthBegin(1),
+            periods=req.periods,
+            freq="MS"
+        )
         dates = [d.strftime("%Y-%m-%d") for d in future_dates]
+
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported model type: {model_type}")
 
     return {
         "category": req.category,
@@ -144,12 +138,11 @@ def predict(req: PredictRequest):
     }
 
 
-
-
-
 @app.get("/api/stats/{category}")
 def stats(category: str) -> Dict[str, Any]:
     y = fetch_series(category)
+    if y.empty:
+        raise HTTPException(status_code=404, detail=f"No data found for category {category}")
     df = y.to_frame(name="quantity")
     return {
         "category": category,
@@ -161,4 +154,3 @@ def stats(category: str) -> Dict[str, Any]:
         "min_quantity": float(df["quantity"].min()),
         "max_quantity": float(df["quantity"].max()),
     }
-
