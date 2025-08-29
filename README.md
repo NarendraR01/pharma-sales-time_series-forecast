@@ -24,7 +24,7 @@ my-python-streamlit-app
 1. Clone the repository:
    ```
    git clone <repository-url>
-   cd my-python-streamlit-app
+   cd Time_series
    ```
 
 2. Install the required packages:
