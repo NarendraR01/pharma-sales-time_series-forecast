@@ -14,7 +14,7 @@ my-python-streamlit-app
 │   │   └── db_manager.py      # Database management operations
 │   └── utils
 │       ├── data_processor.py   # Data processing functions
-│   
+│       ├── model_loader.py     #Loads model for forecast 
 ├── frontend
 │   └── streamlit_app.py       # Streamlit frontend application
 └── README.md                  # Project documentation
@@ -37,10 +37,12 @@ my-python-streamlit-app
 ## Usage
 To run the backend application, execute:
 ```
+cd backend
 uvicorn main:app --reload --port 8000
 ```
 
 To launch the Streamlit frontend, run:
 ```
+cd frontend
 streamlit run frontend/streamlit_app.py
 ```
