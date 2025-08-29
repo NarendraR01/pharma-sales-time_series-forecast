@@ -9,7 +9,7 @@ my-python-streamlit-app
 ├── backend
 │   ├── main.py                # Entry point for the backend application
 │   ├── models
-│   │   └── arima_model.py     # Implementation of the ARIMA model
+│   │      
 │   ├── database
 │   │   └── db_manager.py      # Database management operations
 │   └── utils
