@@ -1,8 +1,9 @@
 # My Python Streamlit App
 
 ## Overview
-This project is a Python application that utilizes Streamlit for the frontend and a backend built with Python. It implements an ARIMA model for time series forecasting and provides a user-friendly interface for interaction.
-
+This project is a Python application that utilizes Streamlit for the frontend and a backend built with Python. It implements different models for time series forecasting and provides a user-friendly interface for interaction.
+## Azure app link:
+Check out [Pharma Sales Analysis & Forecast](https://streamfront-gabnbfb9dnfrcmd3.centralindia-01.azurewebsites.net/)
 ## Project Structure
 ```
 my-python-streamlit-app
