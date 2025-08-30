@@ -20,7 +20,7 @@ st.set_page_config(
 # Configuration
 API_BASE_URL = "http://localhost:8000"  # Change this to your backend URL
 
-# Custom CSS for better styling
+# Custom CSS for better styling     
 st.markdown("""
 <style>
     .main-header {
@@ -556,13 +556,19 @@ def main():
                     # Extract prediction data
                     predictions = result['predictions']
                     dates = result['dates']
-                    #metrics = result['metrics']
+                    
+                    # Convert dates properly to monthly
+                    pred_dates = pd.to_datetime(dates).to_period("M").to_timestamp()
+
+                    # Historical data (make sure also aligned to month)
+                    historical_data = df[df[pred_category].notna()].copy()
+                    historical_data['date'] = pd.to_datetime(historical_data['date'])
+                    historical_data['date'] = historical_data['date'].dt.to_period("M").dt.to_timestamp()
                     
                     # Create prediction visualization
                     fig = go.Figure()
                     
-                    # Historical data
-                    historical_data = df[df[pred_category].notna()]
+                    # Historical data trace
                     fig.add_trace(go.Scatter(
                         x=historical_data['date'],
                         y=historical_data[pred_category],
@@ -570,13 +576,12 @@ def main():
                         name='Historical Data',
                         line=dict(color='blue', width=2),
                         hovertemplate='<b>Historical</b><br>' +
-                                    'Date: %{x}<br>' +
+                                    'Date: %{x|%b %Y}<br>' +
                                     'Quantity: %{y:,.0f}<br>' +
                                     '<extra></extra>'
                     ))
                     
-                    # Predictions
-                    pred_dates = pd.to_datetime(dates)
+                    # Forecast trace
                     fig.add_trace(go.Scatter(
                         x=pred_dates,
                         y=predictions,
@@ -585,11 +590,10 @@ def main():
                         line=dict(color='red', width=2, dash='dash'),
                         marker=dict(size=6),
                         hovertemplate='<b>Forecast</b><br>' +
-                                    'Date: %{x}<br>' +
-                                    'Quantity: %{y:,.0f}<br>' +
-                                    '<extra></extra>'
+                                    'Date: %{x}<br>' + 'Quantity: %{y:,.0f}<br>' + '<extra></extra>'
                     ))
                     
+                    # Layout update
                     fig.update_layout(
                         title=f"Sales Prediction for {pred_category}",
                         xaxis_title="Date",
@@ -599,7 +603,14 @@ def main():
                         showlegend=True
                     )
                     
-                    st.plotly_chart(fig, width="stretch")
+                    # X-axis ticks month-wise
+                    fig.update_xaxes(
+                        dtick="M12",
+                        tickformat="%Y"
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+
                     
                     # Prediction summary and metrics
                     col1, col2 = st.columns(2)
@@ -659,7 +670,7 @@ def main():
                     csv_data = pd.DataFrame({
                         'date': dates,
                         'predicted_quantity': predictions,
-                        
+
                     })
                     
                     csv_string = csv_data.to_csv(index=False)

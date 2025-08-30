@@ -16,7 +16,6 @@ from utils.model_loader import load_model
 
 
 # App / Config
-
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./sales.db")
 app = FastAPI(title="Medicine Sales Forecast API", version="1.0.0")
 
