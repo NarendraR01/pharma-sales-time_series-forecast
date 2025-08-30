@@ -9,15 +9,14 @@ import pandas as pd
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-#from models import TransformerMode
 
 from database.db_manager import init_db, upsert_monthly_records, fetch_categories, fetch_monthly_records, fetch_series
 from utils.data_processor import parse_upload_to_monthly_long, pivot_wide, summarize_wide
 from utils.model_loader import load_model
 
-# ----------------------
+
 # App / Config
-# ----------------------
+
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./sales.db")
 app = FastAPI(title="Medicine Sales Forecast API", version="1.0.0")
 
@@ -33,9 +32,7 @@ app.add_middleware(
 # Initialize DB (creates tables if needed)
 init_db(DATABASE_URL)
 
-# ----------------------
 # Schemas
-# ----------------------
 class PredictRequest(BaseModel):
     category: str = Field(..., description="ATC category to forecast (e.g., M01AB)")
     periods: int = Field(..., ge=1, le=36, description="Forecast horizon in months")
